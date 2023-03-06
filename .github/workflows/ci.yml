@@ -28,6 +28,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          - 5432:5432
 
     steps:
     - uses: actions/checkout@v3 # 复用官方提供的操作，仓库代码部署到运行器中
@@ -38,7 +40,9 @@ jobs:
         go-version: 1.18
 
     - name: Set up migrate
-      run: go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+      run: | # 使用管道符声明使用多行命令
+        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+        which migrate
 
     - name: Run migrations
       run: make migrateup
