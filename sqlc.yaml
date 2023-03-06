@@ -1,0 +1,8 @@
+version: 1
+packages:
+  - name: "db"                # 生成代码的包名称
+    path: "./db/sqlc"         # 生成代码存放目录
+    queries: "./db/query/"    # SQL查询目录或单个SQL文件的路径
+    schema: "./db/migration/" # SQL迁移目录或单个SQL文件的路径
+    engine: "postgresql"
+    emit_json_tags: true      # 将 JSON 标记添加到生成的结构
