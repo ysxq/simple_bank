@@ -603,9 +603,150 @@ SET
 
 
 
+## 七、Actions
+
+GitHub 提供了 Actions 功能，实现 CI
+
+文档：[Building and testing Go - GitHub Docs](https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go)
+
+
+
+```shell
+# 创建配置文件
+mkdir -p .github/workflows
+vim ci.yml
+```
+
+```yaml
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: ci-test
+
+# 定义触发工作流的事件
+on:
+  push:
+    branches: [ "main" ] # 推送到 main 分支
+  pull_request:
+    branches: [ "main" ] # 合并到 main 分支的请求
+
+jobs:
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest # 该工作流允许的操作系统
+
+    services: # 运行服务
+      postgres:
+        image: postgres:15 # docker 镜像
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: 123456
+          POSTGRES_DB: simple_bank
+        options: >- # 健康检查，postgres 是否正常启动
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v3 # 复用官方提供的操作，仓库代码部署到运行器中
+
+    - name: Set up Go
+      uses: actions/setup-go@v3 # 安装 go1.18
+      with:
+        go-version: 1.18
+
+    - name: Set up migrate
+      run: | # 使用管道符声明使用多行命令
+        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+        which migrate
+
+    - name: Run migrations
+      run: make migrateup
+
+    - name: Test
+      run: make test
+
+```
+
+
+
+## 八、配置读取
+
+GitHub：[spf13/viper: Go configuration with fangs (github.com)](https://github.com/spf13/viper)
+
+使用 viper 读取配置
+
+- 支持 JSON、TOML、YAML、ENV、INI
+- 支持命令行参数
+- 支持 ETCD
+- 支持热加载
+
+
+
+app.env
+
+```ini
+DB_DRIVER=postgres
+DB_SOURCE=postgresql://root:123456@localhost:5432/simple_bank?sslmode=disable
+SERVER_ADDRESS=0.0.0.0:8080
+```
+
+
+
+utils/config.go
+
+```go
+package utils
+
+import "github.com/spf13/viper"
+
+// Config stores all configuration of the application.
+// The values are read by viper from a config file or environment variables.
+type Config struct {
+	DBDriver      string `mapstructure:"DB_DRIVER"`
+	DBSource      string `mapstructure:"DB_SOURCE"`
+	ServerAddress string `mapstructure:"SERVER_ADDRESS"`
+}
+
+// LoadConig reads configuration from config file or environment variables.
+func LoadConig(path string) (config Config, err error) {
+	viper.AddConfigPath(path)  // 配置文件所在目录
+	viper.SetConfigName("app") // 配置文件名称（不包含后缀）
+	viper.SetConfigType("env") // 配置文件类型（后缀）
+
+	viper.AutomaticEnv() // 尝试加载环境变量中的配置信息
+
+	err = viper.ReadInConfig() // 读取配置信息
+	if err != nil {
+		return
+	}
+
+	err = viper.Unmarshal(&config)
+	return
+}
+```
+
+
+
+main.go
+
+```go
+conf, err := utils.LoadConig(".")
+if err != nil {
+    log.Fatal("cannot load config:", err)
+}
+```
 
 
 
 
-# 业务开发
 
+
+
+# RESTful API
+
+使用 gin 框架

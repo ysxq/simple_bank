@@ -6,3 +6,4 @@ packages:
     schema: "./db/migration/" # SQL迁移目录或单个SQL文件的路径
     engine: "postgresql"
     emit_json_tags: true      # 将 JSON 标记添加到生成的结构
+    emit_empty_slices: true   # 切片结果为空时，返回空切片（默认 nil）
