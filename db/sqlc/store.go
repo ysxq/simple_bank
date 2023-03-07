@@ -6,22 +6,28 @@ import (
 	"fmt"
 )
 
-// Store 提供了所有转账相关方法
-type Store struct {
+// Store 提供了所有数据库转账相关方法
+type Store interface {
+	Querier
+	TransferTx(ctx context.Context, arg TransferTxParams) (TransferTxResult, error)
+}
+
+// SQLStore 提供了所有操作 SQL 转账的相关方法
+type SQLStore struct {
 	*Queries         // 组合 sqlc 生成的单个数据库操作
 	db       *sql.DB // 用于执行事务
 }
 
 // NewStore creates a new Store
-func NewStore(db *sql.DB) *Store {
-	return &Store{
+func NewStore(db *sql.DB) Store {
+	return &SQLStore{
 		db:      db,
 		Queries: New(db),
 	}
 }
 
 // execTx 使用事务执行一个数据库操作的方法
-func (stroe *Store) execTx(ctx context.Context, fn func(*Queries) error) error {
+func (stroe *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) error {
 	// 开始事务，使用默认的读隔离
 	tx, err := stroe.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -63,7 +69,7 @@ type TransferTxResult struct {
 
 // 使用事务执行转账操作
 // 包含创建转账记录、扣账记录、入账记录、账户扣账、账户入账
-func (Store *Store) TransferTx(ctx context.Context, arg TransferTxParams) (TransferTxResult, error) {
+func (Store *SQLStore) TransferTx(ctx context.Context, arg TransferTxParams) (TransferTxResult, error) {
 	var result TransferTxResult
 
 	err := Store.execTx(ctx, func(q *Queries) error {

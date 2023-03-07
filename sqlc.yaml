@@ -7,3 +7,4 @@ packages:
     engine: "postgresql"
     emit_json_tags: true      # 将 JSON 标记添加到生成的结构
     emit_empty_slices: true   # 切片结果为空时，返回空切片（默认 nil）
+    emit_interface: true      # 所有 CRUD 汇总为一个接口
