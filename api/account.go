@@ -9,8 +9,8 @@ import (
 )
 
 type createAccountRequest struct {
-	Owner    string `json:"owner" binding:"required"`                      // binding 标签表示 gin 验证必填选项
-	Currency string `json:"currency" binding:"required,oneof=USD RMB EUR"` // oneof 表示请求值范围
+	Owner    string `json:"owner" binding:"required"` // binding 标签表示 gin 验证必填选项
+	Currency string `json:"currency" binding:"required,currency"`
 }
 
 func (server *Server) createAccount(ctx *gin.Context) {

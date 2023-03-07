@@ -750,3 +750,154 @@ if err != nil {
 # RESTful API
 
 使用 gin 框架
+
+
+
+## API 测试
+
+GitHub：[golang/mock: GoMock is a mocking framework for the Go programming language. (github.com)](https://github.com/golang/mock)
+
+使用 gomock 模拟数据库接口，并对 API 编写单元测试
+
+
+
+1. 安装 mockgen 工具
+
+```shell
+go install github.com/golang/mock/mockgen@v1.6.0
+
+# 当前项目添加 gomock 依赖
+go get github.com/golang/mock
+```
+
+2. 对实现 CRUD 的接口自动映射，实现 mock CRUD
+    - 目前使用 Store 结构体实现 CRUD，只能连接到真实数据库
+    - 可以将 Store 改造为接口
+
+
+
+3. mockgen 生成 mock 代码
+
+```shell
+mockgen -package mockdb -destination db/mock/store.go simplebank/db/sqlc Store
+# -package mockdb    指定生成文件的包名
+# -destination ...   指定生成文件位置
+# simplebank/db/sqlc 指定CRUD接口所在目录
+# Store              指定CRUD接口名称
+```
+
+
+
+
+
+## gin 自定义验证器
+
+utils/currency.go
+
+```go
+package utils
+
+// Constants for all supported currencies
+const (
+	USD = "USD"
+	RMB = "RMB"
+	EUR = "EUR"
+)
+
+// IsSupportCurrency returns true if the currency is supported
+func IsSupportCurrency(currency string) bool {
+	switch currency {
+	case USD, RMB, EUR:
+		return true
+	}
+
+	return false
+}
+```
+
+
+
+api/validator.go
+
+```go
+package api
+
+import (
+	"simplebank/utils"
+
+	"github.com/go-playground/validator/v10"
+)
+
+var validCurrency validator.Func = func(fl validator.FieldLevel) bool {
+	// 先判断数据是否为字符串
+	if currency, ok := fl.Field().Interface().(string); ok {
+		return utils.IsSupportCurrency(currency)
+	}
+	return false
+}
+```
+
+
+
+api/server.go
+
+```go
+package api
+
+import (
+	db "simplebank/db/sqlc"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
+)
+
+// Server servers HTTP requests for our banking service.
+type Server struct {
+	store  db.Store
+	router *gin.Engine
+}
+
+// NewServer creates a new HTTP server and setup routing.
+func NewServer(store db.Store) *Server {
+	server := &Server{store: store}
+	router := gin.Default()
+
+	// 注册 currency 检查器
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		v.RegisterValidation("currency", validCurrency)
+	}
+
+	router.POST("/accounts", server.createAccount)
+	router.GET("/accounts/:id", server.getAccount)
+	router.GET("/accounts", server.listAccount)
+	router.DELETE("/accounts/:id", server.deleteAccount)
+	router.PUT("/accounts", server.updateAccount)
+
+	router.POST("/transfer", server.createTransfer)
+
+	server.router = router
+	return server
+}
+
+// Start runs the HTTP server on a specific address.
+func (server *Server) Start(address string) {
+	server.router.Run(address)
+}
+
+func errorResponse(err error) gin.H {
+	return gin.H{"error": err.Error()}
+}
+```
+
+
+
+使用：
+
+```go
+type createAccountRequest struct {
+	Owner    string `json:"owner" binding:"required"` // binding 标签表示 gin 验证必填选项
+	Currency string `json:"currency" binding:"required,currency"`
+}
+```
+
