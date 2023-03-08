@@ -11,11 +11,14 @@ import (
 
 // 为了保证每个测试单元的独立性，删改查时都应该自行单独创建数据
 func CreateRandomUser(t *testing.T) User {
+	hashedPassword, err := utils.HashPassword(utils.RandomString(6))
+	require.NoError(t, err)
+
 	arg := CreateUserParams{
 		Username:       utils.RandomOwner(),
-		HashedPassword: "123456",
+		HashedPassword: hashedPassword,
 		FullName:       utils.RandomOwner(),
-		Email:          utils.RandomEmal(),
+		Email:          utils.RandomEmail(),
 	}
 
 	user, err := testQueries.CreateUser(context.Background(), arg)

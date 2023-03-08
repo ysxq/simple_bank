@@ -142,7 +142,7 @@ func TestCreateAccountAPI(t *testing.T) {
 			},
 		},
 		{
-			name: "BarRequest",
+			name: "BadRequest",
 			body: gin.H{
 				"owner": account.Owner,
 			},

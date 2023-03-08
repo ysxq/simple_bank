@@ -64,7 +64,7 @@ func TestCreateTransfer(t *testing.T) {
 			},
 		},
 		{
-			name: "BarRequest1",
+			name: "BadRequest1",
 			body: gin.H{
 				"from_account_id": 0,
 				"to_account_id":   transferTxResult.ToAccount.ID,
@@ -89,7 +89,7 @@ func TestCreateTransfer(t *testing.T) {
 			},
 		},
 		{
-			name: "BarRequest2",
+			name: "BadRequest2",
 			body: gin.H{
 				"from_account_id": transferTxResult.FromAccount.ID,
 				"to_account_id":   transferTxResult.ToAccount.ID,
