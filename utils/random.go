@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -45,4 +46,8 @@ func RandomCurrency() string {
 	currencies := []string{USD, RMB, EUR} // 美元、人民币、欧元
 	n := len(currencies)
 	return currencies[rand.Intn(n)]
+}
+
+func RandomEmal() string {
+	return fmt.Sprintf("%v@emal.com", RandomString(6))
 }

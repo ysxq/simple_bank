@@ -12,8 +12,9 @@ import (
 
 // 为了保证每个测试单元的独立性，删改查时都应该自行单独创建数据
 func CreateRandomAccount(t *testing.T) Account {
+	user := CreateRandomUser(t)
 	arg := CreateAccountParams{
-		Owner:    utils.RandomOwner(),
+		Owner:    user.Username,
 		Balance:  utils.RandomMoney(),
 		Currency: utils.RandomCurrency(),
 	}
