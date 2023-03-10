@@ -11,17 +11,20 @@ import (
 )
 
 func main() {
-	conf, err := utils.LoadConig(".")
+	config, err := utils.LoadConig(".")
 	if err != nil {
 		log.Fatal("cannot load config:", err)
 	}
-	conn, err := sql.Open(conf.DBDriver, conf.DBSource)
+	conn, err := sql.Open(config.DBDriver, config.DBSource)
 	if err != nil {
 		log.Fatal("cannot connect to db:", err)
 	}
 
 	store := db.NewStore(conn)
-	server := api.NewServer(store)
+	server, err := api.NewServer(config, store)
+	if err != nil {
+		log.Fatal("cannot create token maker:", err)
+	}
 
-	server.Start(conf.ServerAddress)
+	log.Fatal(server.Start())
 }

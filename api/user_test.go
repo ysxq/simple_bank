@@ -163,10 +163,130 @@ func TestCreateUserAPI(t *testing.T) {
 			tc.buildStubs(store)
 
 			// start test server and send request
-			server := NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			url := "/users"
+			data, err := json.Marshal(tc.body)
+			require.NoError(t, err)
+
+			request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+			require.NoError(t, err)
+
+			server.router.ServeHTTP(recorder, request)
+
+			tc.checkResponse(t, recorder)
+		})
+	}
+}
+
+func TestLoginUserAPI(t *testing.T) {
+	user, password := randomUser(t)
+
+	// 全部测试案例
+	testCases := []struct {
+		name          string                        // 每个测试案例都有单独的名称
+		body          gin.H                         // 测试案例请求体内容
+		buildStubs    func(store *mockdb.MockStore) // 声明本次模拟请求 CRUD 的预期结果
+		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{
+		{
+			name: "OK",
+			body: gin.H{
+				"username": user.Username,
+				"password": password,
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetUser(gomock.Any(), gomock.Eq(user.Username)).
+					Times(1).
+					Return(user, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusOK, recorder.Code)
+				requireBodyMatchLoginUser(t, recorder.Body, user)
+			},
+		},
+		{
+			name: "BadRequest",
+			body: gin.H{
+				"username": user.Username,
+				"password": "111",
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetUser(gomock.Any(), gomock.Any()).
+					Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+			},
+		},
+		{
+			name: "DBConnectInternalError",
+			body: gin.H{
+				"username": user.Username,
+				"password": password,
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetUser(gomock.Any(), gomock.Eq(user.Username)).
+					Times(1).
+					Return(db.User{}, sql.ErrConnDone)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusInternalServerError, recorder.Code)
+			},
+		},
+		{
+			name: "NoTFountUser",
+			body: gin.H{
+				"username": "user.Username",
+				"password": password,
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetUser(gomock.Any(), gomock.Any()).
+					Times(1).
+					Return(user, sql.ErrNoRows)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusNotFound, recorder.Code)
+			},
+		},
+		{
+			name: "PasswordError",
+			body: gin.H{
+				"username": user.Username,
+				"password": "password",
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetUser(gomock.Any(), gomock.Eq(user.Username)).
+					Times(1).
+					Return(user, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		// 每个测试案例使用子测试运行
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			store := mockdb.NewMockStore(ctrl)
+			// 声明本次模拟请求预期结果
+			tc.buildStubs(store)
+
+			// start test server and send request
+			server := newTestServer(t, store)
+			recorder := httptest.NewRecorder()
+
+			url := "/users/login"
 			data, err := json.Marshal(tc.body)
 			require.NoError(t, err)
 
@@ -204,4 +324,19 @@ func requireBodyMatchUser(t *testing.T, body *bytes.Buffer, user db.User) {
 	require.Equal(t, user.FullName, gotUser.FullName)
 	require.Equal(t, user.Email, gotUser.Email)
 	require.Empty(t, gotUser.HashedPassword)
+}
+
+func requireBodyMatchLoginUser(t *testing.T, body *bytes.Buffer, user db.User) {
+	data, err := ioutil.ReadAll(body)
+	require.NoError(t, err)
+
+	var gotLoginUser loginUserResponse
+	err = json.Unmarshal(data, &gotLoginUser)
+	require.NoError(t, err)
+	require.Equal(t, user.Username, gotLoginUser.User.Username)
+	require.Equal(t, user.FullName, gotLoginUser.User.FullName)
+	require.Equal(t, user.Email, gotLoginUser.User.Email)
+	require.Equal(t, user.CreatedAt, gotLoginUser.User.CreatedAt)
+	require.Equal(t, user.PasswordChangedAt, gotLoginUser.User.PasswordChangedAt)
+	require.NotEmpty(t, gotLoginUser.AccessToken)
 }
