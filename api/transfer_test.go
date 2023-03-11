@@ -10,8 +10,10 @@ import (
 	"net/http/httptest"
 	mockdb "simplebank/db/mock"
 	db "simplebank/db/sqlc"
+	"simplebank/token"
 	"simplebank/utils"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
@@ -19,12 +21,14 @@ import (
 )
 
 func TestCreateTransfer(t *testing.T) {
-	transferTxResult := randomTransferTxResult()
+	user, _ := randomUser(t)
+	transferTxResult := randomTransferTxResult(t, user.Username)
 
 	// 全部测试案例
 	testCases := []struct {
 		name          string
 		body          gin.H
+		setupAuth     func(t *testing.T, request *http.Request, tokenMaker token.Maker)
 		buildStubs    func(store *mockdb.MockStore)
 		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
@@ -35,6 +39,9 @@ func TestCreateTransfer(t *testing.T) {
 				"to_account_id":   transferTxResult.ToAccount.ID,
 				"amount":          transferTxResult.Transfer.Amount,
 				"currency":        utils.RMB,
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
@@ -64,12 +71,45 @@ func TestCreateTransfer(t *testing.T) {
 			},
 		},
 		{
+			name: "UnauthorizedUser",
+			body: gin.H{
+				"from_account_id": transferTxResult.FromAccount.ID,
+				"to_account_id":   transferTxResult.ToAccount.ID,
+				"amount":          transferTxResult.Transfer.Amount,
+				"currency":        utils.RMB,
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, "unauthorized_user", time.Minute)
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetAccount(gomock.Any(), gomock.Eq(transferTxResult.FromAccount.ID)).
+					Times(1).
+					Return(transferTxResult.FromAccount, nil)
+
+				store.EXPECT().
+					GetAccount(gomock.Any(), gomock.Any()).
+					Times(0)
+
+				store.EXPECT().
+					TransferTx(gomock.Any(), gomock.Any()).
+					Times(0).
+					Return(transferTxResult, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			},
+		},
+		{
 			name: "BadRequest1",
 			body: gin.H{
 				"from_account_id": 0,
 				"to_account_id":   transferTxResult.ToAccount.ID,
 				"amount":          transferTxResult.Transfer.Amount,
 				"currency":        utils.RMB,
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
@@ -95,6 +135,9 @@ func TestCreateTransfer(t *testing.T) {
 				"to_account_id":   transferTxResult.ToAccount.ID,
 				"amount":          transferTxResult.Transfer.Amount,
 				"currency":        utils.USD,
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
@@ -122,6 +165,9 @@ func TestCreateTransfer(t *testing.T) {
 				"amount":          transferTxResult.Transfer.Amount,
 				"currency":        utils.RMB,
 			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
+			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
 					GetAccount(gomock.Any(), gomock.Any()).
@@ -147,6 +193,9 @@ func TestCreateTransfer(t *testing.T) {
 				"to_account_id":   transferTxResult.ToAccount.ID,
 				"amount":          transferTxResult.Transfer.Amount,
 				"currency":        utils.RMB,
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
@@ -174,6 +223,9 @@ func TestCreateTransfer(t *testing.T) {
 				"amount":          transferTxResult.Transfer.Amount,
 				"currency":        utils.RMB,
 			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
+			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
 					GetAccount(gomock.Any(), gomock.Eq(transferTxResult.FromAccount.ID)).
@@ -200,6 +252,9 @@ func TestCreateTransfer(t *testing.T) {
 				"to_account_id":   transferTxResult.ToAccount.ID,
 				"amount":          transferTxResult.Transfer.Amount,
 				"currency":        utils.RMB,
+			},
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
@@ -250,6 +305,8 @@ func TestCreateTransfer(t *testing.T) {
 			request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
 			require.NoError(t, err)
 
+			tc.setupAuth(t, request, server.tokenMaker)
+
 			server.router.ServeHTTP(recorder, request)
 
 			tc.checkResponse(t, recorder)
@@ -257,10 +314,12 @@ func TestCreateTransfer(t *testing.T) {
 	}
 }
 
-func randomTransferTxResult() db.TransferTxResult {
-	fromAccount := randomAccount()
+func randomTransferTxResult(t *testing.T, owner string) db.TransferTxResult {
+	fromAccount := randomAccount(owner)
 	fromAccount.Currency = utils.RMB
-	toAccount := randomAccount()
+
+	user2, _ := randomUser(t)
+	toAccount := randomAccount(user2.Username)
 	toAccount.Currency = utils.RMB
 	fmt.Println(fromAccount, toAccount)
 	amount := int64(10)
@@ -271,12 +330,12 @@ func randomTransferTxResult() db.TransferTxResult {
 		Amount:        amount,
 	}
 	fromEntry := db.Entry{
-		ID:        randomAccount().ID,
+		ID:        utils.RandomInt(1, 1000),
 		AccountID: fromAccount.ID,
 		Amount:    -amount,
 	}
 	toEntry := db.Entry{
-		ID:        randomAccount().ID,
+		ID:        utils.RandomInt(1, 1000),
 		AccountID: toAccount.ID,
 		Amount:    amount,
 	}

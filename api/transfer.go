@@ -2,9 +2,11 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	db "simplebank/db/sqlc"
+	"simplebank/token"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,11 +26,21 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 	}
 
 	// 判断指定转账的货币类型与账户内货币是否相同
-	if !server.validCurrency(ctx, req.FromAccountID, req.Currency) {
+	fromAccount, valid := server.validCurrency(ctx, req.FromAccountID, req.Currency)
+	if !valid {
 		return
 	}
 
-	if !server.validCurrency(ctx, req.ToAccountID, req.Currency) {
+	// 判断转账发起者是否为本人
+	payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
+	if fromAccount.Owner != payload.Username {
+		err := errors.New("from account doesn't belon to the authencited user")
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
+	}
+
+	_, valid = server.validCurrency(ctx, req.ToAccountID, req.Currency)
+	if !valid {
 		return
 	}
 
@@ -46,22 +58,22 @@ func (server *Server) createTransfer(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, result)
 }
 
-func (server *Server) validCurrency(ctx *gin.Context, accountId int64, currency string) bool {
+func (server *Server) validCurrency(ctx *gin.Context, accountId int64, currency string) (db.Account, bool) {
 	account, err := server.store.GetAccount(ctx, accountId)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errorResponse(err))
-			return false
+			return account, false
 		}
 
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return false
+		return account, false
 	}
 
 	if account.Currency != currency {
 		ctx.JSON(http.StatusBadRequest, fmt.Sprintf("account [%d] currency mismatch: [%v] vs [%v]", accountId, account.Currency, currency))
-		return false
+		return account, false
 	}
 
-	return true
+	return account, true
 }

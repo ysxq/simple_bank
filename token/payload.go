@@ -12,6 +12,7 @@ var (
 	ErrTokenExpired = errors.New("token is expired")
 )
 
+// token 元数据
 type Payload struct {
 	ID        uuid.UUID `json:"id"`
 	Username  string    `json:"username"`

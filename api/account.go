@@ -2,16 +2,17 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	db "simplebank/db/sqlc"
+	"simplebank/token"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
 )
 
 type createAccountRequest struct {
-	Owner    string `json:"owner" binding:"required"` // binding 标签表示 gin 验证必填选项
 	Currency string `json:"currency" binding:"required,currency"`
 }
 
@@ -22,8 +23,9 @@ func (server *Server) createAccount(ctx *gin.Context) {
 		return
 	}
 
+	payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	arg := db.CreateAccountParams{
-		Owner:    req.Owner,
+		Owner:    payload.Username,
 		Currency: req.Currency,
 	}
 	account, err := server.store.CreateAccount(ctx, arg)
@@ -66,6 +68,14 @@ func (server *Server) getAccount(ctx *gin.Context) {
 		return
 	}
 
+	// 只能查看自己的用户信息
+	payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
+	if account.Owner != payload.Username {
+		err := errors.New("account doesn't belong to the authencited user")
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
+	}
+
 	ctx.JSON(http.StatusOK, account)
 }
 
@@ -81,7 +91,10 @@ func (server *Server) listAccount(ctx *gin.Context) {
 		return
 	}
 
+	// 只能查看自己的用户信息
+	payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	arg := db.ListAccountsParams{
+		Owner:  payload.Username,
 		Limit:  req.PageSize,
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
@@ -105,7 +118,13 @@ func (server *Server) deleteAccount(ctx *gin.Context) {
 		return
 	}
 
-	err := server.store.DeleteAccount(ctx, req.Id)
+	payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
+	arg := db.DeleteAccountParams{
+		ID:    req.Id,
+		Owner: payload.Username,
+	}
+
+	err := server.store.DeleteAccount(ctx, arg)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, errorResponse(err))
@@ -131,8 +150,10 @@ func (server *Server) updateAccount(ctx *gin.Context) {
 		return
 	}
 
+	payload := ctx.MustGet(authorizationPayloadKey).(*token.Payload)
 	arg := db.UpdateAccountParams{
 		ID:      req.Id,
+		Owner:   payload.Username,
 		Balance: req.Balance,
 	}
 	account, err := server.store.UpdateAccount(ctx, arg)
