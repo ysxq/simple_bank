@@ -35,9 +35,9 @@ jobs:
     - uses: actions/checkout@v3 # 复用官方提供的操作，仓库代码部署到运行器中
 
     - name: Set up Go
-      uses: actions/setup-go@v3 # 安装 go1.18
+      uses: actions/setup-go@v3 # 安装 go
       with:
-        go-version: 1.18
+        go-version: 1.20.2
 
     - name: Set up migrate
       run: | # 使用管道符声明使用多行命令
