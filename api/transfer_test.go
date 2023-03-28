@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	mockdb "simplebank/db/mock"
@@ -350,7 +350,7 @@ func randomTransferTxResult(t *testing.T, owner string) db.TransferTxResult {
 }
 
 func requireBodyMatchTransferTxResult(t *testing.T, body *bytes.Buffer, transferTxResult db.TransferTxResult) {
-	data, err := ioutil.ReadAll(body)
+	data, err := io.ReadAll(body)
 	require.NoError(t, err)
 
 	var gottransferTxResult db.TransferTxResult
