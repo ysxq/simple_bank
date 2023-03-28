@@ -901,55 +901,5 @@ type createAccountRequest struct {
 }
 ```
 
-## 密码hash加密
-utils/password.go
-```go
-package utils
 
-import (
-	"fmt"
 
-	"golang.org/x/crypto/bcrypt"
-)
-
-// HashPassword returns the bcrypt hash of the password
-func HashPassword(password string) (string, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	return string(hashedPassword), nil
-}
-
-func CheckPassword(password string, hashedPassword string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-}
-```
-
-测试：
-utils/password_test.go
-```go
-package utils
-
-import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/bcrypt"
-)
-
-func TestHashPassword(t *testing.T) {
-	password := RandomString(6)
-	hashedPassword, err := HashPassword(password)
-	require.NoError(t, err)
-	require.NotEmpty(t, hashedPassword)
-
-	err = CheckPassword(password, hashedPassword)
-	require.NoError(t, err)
-
-	wrongPassword := RandomString(7)
-	err = CheckPassword(wrongPassword, hashedPassword)
-	require.EqualError(t, err, bcrypt.ErrMismatchedHashAndPassword.Error())
-}
-```
